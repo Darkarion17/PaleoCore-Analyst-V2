@@ -1,13 +1,23 @@
-
 import { GoogleGenAI, GenerateContentResponse, Type, Content } from "@google/genai";
 import type { Section, DataPoint, Microfossil, PartialMicrofossil, Taxonomy, EcologicalData, TiePoint, PaleoEvent } from '../types';
 import { COMMON_DATA_KEYS } from "../constants";
 
-if (!process.env.API_KEY) {
-    console.error("API_KEY environment variable not set. AI features will be disabled.");
-}
+// Se inicializa 'ai' de manera laxa para poder manejar el caso de que la clave no esté configurada
+let ai: GoogleGenAI | null = null;
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+// Función para inicializar el objeto de IA solo si la clave existe
+const initializeGeminiClient = () => {
+    if (!API_KEY) {
+        console.error("API_KEY environment variable not set. AI features will be disabled.");
+        return null;
+    }
+    return new GoogleGenAI({ apiKey: API_KEY });
+};
+
+// Se llama a la función de inicialización.
+// Esto permite que el resto del código funcione aunque la API key no esté presente.
+ai = initializeGeminiClient();
 
 const formatSectionDataForChat = (section: Section): string => {
     let dataSummary = 'No data points provided for this section.';
@@ -27,7 +37,7 @@ const formatSectionDataForChat = (section: Section): string => {
 };
 
 export const getAnalysisFromAIStream = async (section: Section, query: string): Promise<AsyncGenerator<GenerateContentResponse>> => {
-    if (!process.env.API_KEY) {
+    if (!ai) {
         throw new Error("Error: API key is not configured. Please contact the administrator.");
     }
     
@@ -55,7 +65,7 @@ export const getAnalysisFromAIStream = async (section: Section, query: string): 
 
 
 export const generateSectionSummary = async (section: Section, microfossils: Microfossil[]): Promise<string> => {
-    if (!process.env.API_KEY) {
+    if (!ai) {
         return "Error: API key is not configured.";
     }
     
@@ -110,7 +120,7 @@ export const generateSectionSummary = async (section: Section, microfossils: Mic
 };
 
 export const mapCsvHeaders = async (headers: string[]): Promise<Record<string, string | null>> => {
-    if (!process.env.API_KEY) throw new Error("API key is not configured.");
+    if (!ai) throw new Error("API key is not configured.");
     
     const model = 'gemini-2.5-flash';
     const knownKeys = Object.keys(COMMON_DATA_KEYS);
@@ -160,7 +170,7 @@ export const mapCsvHeaders = async (headers: string[]): Promise<Record<string, s
 };
 
 export const identifyFossilFromImage = async (base64Image: string, mimeType: string): Promise<string> => {
-    if (!process.env.API_KEY) return "Error: API key is not configured.";
+    if (!ai) return "Error: API key is not configured.";
 
     const model = 'gemini-2.5-flash';
     const imagePart = {
@@ -219,7 +229,7 @@ export const parseFossilAnalysis = (analysisText: string): PartialMicrofossil =>
             parsedData.taxonomy.genus = nameParts[0];
             parsedData.taxonomy.species = nameParts[1];
         } else {
-             parsedData.taxonomy.genus = idText;
+            parsedData.taxonomy.genus = idText;
         }
     }
     
@@ -238,7 +248,7 @@ export const parseFossilAnalysis = (analysisText: string): PartialMicrofossil =>
 
 
 export const generateAgeModel = async (sections: Section[], tiePoints: TiePoint[]): Promise<Section[]> => {
-    if (!process.env.API_KEY) throw new Error("API key is not configured.");
+    if (!ai) throw new Error("API key is not configured.");
 
     const model = 'gemini-2.5-flash';
     const systemInstruction = `You are a highly skilled paleoceanographic data scientist specializing in age-depth modeling. Your task is to create a robust age model for a set of sediment sections.
@@ -388,7 +398,7 @@ export const generateAgeModel = async (sections: Section[], tiePoints: TiePoint[
 };
 
 export const detectPaleoEvents = async (dataPoints: DataPoint[]): Promise<PaleoEvent[]> => {
-    if (!process.env.API_KEY) throw new Error("API key is not configured.");
+    if (!ai) throw new Error("API key is not configured.");
     
     const model = 'gemini-2.5-flash';
     const systemInstruction = `You are a paleoclimatology expert. Your task is to analyze a given time series data (age in thousands of years 'ka' vs. a proxy value) and identify significant named paleo-events. These could include Heinrich Stadials, Dansgaard-Oeschger events, Bond events, the Younger Dryas, Bølling-Allerød, etc. For each event, provide its name, its start and end age in ka, and a brief scientific description of its significance. Only identify events that are reasonably supported by the data trends.`;
